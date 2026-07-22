@@ -137,12 +137,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 .tab-label .badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600;background:#e8e8e8;color:#666}
 #tab-overview:checked ~ .tabs-bar .tab-label[for="tab-overview"] .badge,
 #tab-detail:checked ~ .tabs-bar .tab-label[for="tab-detail"] .badge{background:#1a73e8;color:#fff}
+
+/* Screenshot button */
+.screenshot-btn{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;align-items:center;gap:8px;
+  padding:10px 18px;border:none;border-radius:24px;background:#1a73e8;color:#fff;font-size:14px;font-weight:600;
+  cursor:pointer;box-shadow:0 4px 16px rgba(26,115,232,0.4);transition:all .2s ease;font-family:inherit}
+.screenshot-btn:hover{background:#1557b0;box-shadow:0 6px 20px rgba(26,115,232,0.5);transform:translateY(-1px)}
+.screenshot-btn:active{transform:translateY(0);box-shadow:0 2px 8px rgba(26,115,232,0.4)}
+.screenshot-btn:disabled{opacity:0.6;cursor:not-allowed;transform:none}
+.screenshot-btn svg{width:18px;height:18px;fill:currentColor;flex-shrink:0}
+.screenshot-toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);z-index:10000;
+  padding:10px 24px;border-radius:8px;font-size:14px;font-weight:500;color:#fff;
+  transition:transform .35s ease,opacity .35s ease;opacity:0;pointer-events:none}
+.screenshot-toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.screenshot-toast.success{background:#2e7d32}
+.screenshot-toast.error{background:#c62828}
+@media print{.screenshot-btn,.screenshot-toast{display:none!important}}
 </style>
 </head>
 <body>
 <div class="header">
   <h1>四大法宝 & 四大利器 · 日度监控</h1>
-  <div class="date">数据日期: 2026-07-22 | 生成时间: 2026/07/22 14:56:09</div>
+  <div class="date">数据日期: 2026-07-22 | 生成时间: 2026/07/22 15:50:41</div>
 </div>
 <input type="radio" name="view" id="tab-overview" class="tab-radio" checked>
 <input type="radio" name="view" id="tab-detail" class="tab-radio">
@@ -161,3 +177,66 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Micr
 <div class="footer">数据来源: 四大法宝&四大利器(日度).xlsx | 自动生成</div>
 </body>
 </html>
+<button class="screenshot-btn" onclick="takeScreenshot()" id="ssBtn">
+<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+<span>截图复制</span>
+</button>
+<div class="screenshot-toast" id="ssToast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+function showToast(msg, type) {
+  var t = document.getElementById('ssToast');
+  t.textContent = msg;
+  t.className = 'screenshot-toast ' + type + ' show';
+  setTimeout(function() { t.className = 'screenshot-toast ' + type; }, 2500);
+}
+function takeScreenshot() {
+  var btn = document.getElementById('ssBtn');
+  btn.disabled = true;
+  btn.querySelector('span').textContent = '截图中...';
+  var header = document.querySelector('.header');
+  var tabsBar = document.querySelector('.tabs-bar');
+  var content = document.querySelector('.content');
+  var overviewRadio = document.getElementById('tab-overview');
+  var isActiveOverview = overviewRadio && overviewRadio.checked;
+  var wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;background:#f0f2f5;width:' + document.body.scrollWidth + 'px';
+  wrapper.appendChild(header.cloneNode(true));
+  wrapper.appendChild(tabsBar.cloneNode(true));
+  var contentClone = content.cloneNode(true);
+  var panels = contentClone.children;
+  for (var i = 0; i < panels.length; i++) {
+    var isOv = panels[i].classList.contains('panel-overview');
+    var isDt = panels[i].classList.contains('panel-detail');
+    panels[i].style.display = ((isOv && isActiveOverview) || (isDt && !isActiveOverview)) ? 'block' : 'none';
+  }
+  wrapper.appendChild(contentClone);
+  document.body.appendChild(wrapper);
+  html2canvas(wrapper, {
+    scale: 2, useCORS: true, backgroundColor: '#f0f2f5', logging: false
+  }).then(function(canvas) {
+    document.body.removeChild(wrapper);
+    canvas.toBlob(function(blob) {
+      if (!blob) { showToast('截图失败', 'error'); btn.disabled = false; btn.querySelector('span').textContent = '截图复制'; return; }
+      try {
+        navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(function() {
+          showToast('截图已复制到剪贴板', 'success');
+        }).catch(function() {
+          var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+          a.download = 'dashboard_' + new Date().toISOString().slice(0,10) + '.png'; a.click();
+          showToast('已下载为图片（剪贴板不可用）', 'success');
+        });
+      } catch(e) {
+        var a = document.createElement('a'); a.href = canvas.toDataURL('image/png');
+        a.download = 'dashboard_' + new Date().toISOString().slice(0,10) + '.png'; a.click();
+        showToast('已下载为图片（剪贴板不可用）', 'success');
+      }
+      btn.disabled = false; btn.querySelector('span').textContent = '截图复制';
+    }, 'image/png');
+  }).catch(function(err) {
+    document.body.removeChild(wrapper);
+    showToast('截图失败：' + err.message, 'error');
+    btn.disabled = false; btn.querySelector('span').textContent = '截图复制';
+  });
+}
+</script>
